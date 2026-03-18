@@ -1,7 +1,6 @@
 # Real-Time Data Platform — FAANG Architecture
 
-[![CI/CD](https://github.com/yourusername/faang-real-time-data-platform/actions/workflows/ci_cd.yml/badge.svg)](https://github.com/yourusername/faang-real-time-data-platform/actions)
-[![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform)](infrastructure/terraform)
+[![CI/CD](https://github.com/shradhadubey/faang-real-time-data-platform/actions/workflows/ci_cd.yml/badge.svg)](https://github.com/shradhadubey/faang-real-time-data-platform/actions)[![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform)](infrastructure/terraform)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python)](data-generator)
 [![AWS](https://img.shields.io/badge/Cloud-AWS-FF9900?logo=amazon-aws)](infrastructure)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
