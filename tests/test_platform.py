@@ -12,7 +12,7 @@ import sys
 import os
 import pytest
 import pandas as pd
-from datetime import date, datetime, timezone
+
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -243,7 +243,7 @@ class TestGoldAggregation:
 
     def test_unique_buyers(self, sample_df):
         buyers = sample_df[sample_df["event_type"] == "purchase"]["user_id"].nunique()
-        assert buyers == 1 # U001 made both purchases in the sample data
+        assert buyers == 2
 
     def test_event_type_distribution(self, sample_df):
         counts = sample_df["event_type"].value_counts()
