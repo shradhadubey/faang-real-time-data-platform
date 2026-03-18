@@ -8,6 +8,9 @@
 > A production-grade, real-time data platform processing **1,000+ events/second** through a
 > Medallion architecture on AWS — built to demonstrate Senior Data Engineer skills at FAANG scale.
 
+> 🔗 **[View live interactive dashboard](https://shradhadubey.github.io/faang-real-time-data-platform/)**
+![Full Dashboard](dashboard/screenshot_dashboard_full.png)
+
 ---
 
 ##  Architecture
