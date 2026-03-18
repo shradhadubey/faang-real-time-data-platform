@@ -353,6 +353,94 @@ FROM silver_events;
 
 ---
 
+## 🧪 Testing
+
+### Why testing matters in a data pipeline
+
+In a web app, a bug breaks the UI and users notice immediately. In a data pipeline, a bug
+**silently corrupts data for days** before anyone realises — by which time executives have
+made decisions on wrong numbers and you have hours of backfilling ahead of you. Tests are
+your early warning system. They catch problems at the code level, before bad data ever
+reaches a dashboard.
+
+### The four categories every test suite covers
+
+| Category | What it checks | Example in this project |
+|----------|---------------|------------------------|
+| **Happy path** | Normal valid input succeeds | A complete purchase event passes validation |
+| **Edge cases** | Boundary values behave correctly | Price of exactly `0` fails, `0.01` passes |
+| **Bad input** | Invalid data is rejected with a clear reason | Missing `event_id` → `"missing_event_id"` |
+| **Business rules** | Domain logic is enforced exactly | Spend of `500.00` = `high_value`, not `vip` |
+
+### How tests are structured — Arrange, Act, Assert
+
+Every test follows the same three-step pattern:
+
+```python
+def test_negative_price_fails():
+    record = make_event(price=-10.0)       # Arrange — build the input
+    ok, reason = validate_event(record)    # Act     — run the function
+    assert ok is False                     # Assert  — check the result
+    assert reason == "invalid_price"       # Assert  — check the reason
+```
+
+This makes tests easy to read, easy to debug, and impossible to misinterpret.
+
+
+### What is tested and why
+
+```
+tests/test_platform.py — 40 tests, runs in ~2 seconds, no AWS credentials needed
+
+├── TestEventStructure    (6 tests)
+│   Every event must have required fields and serialise to valid JSON.
+│   If this breaks, nothing downstream can process the event at all.
+
+├── TestValidation        (14 tests)
+│   The Silver layer rejects bad records to a dead-letter path.
+│   These confirm every rejection reason is triggered correctly —
+│   including all 6 valid event types and 3 device types.
+
+├── TestGoldAggregation   (6 tests)
+│   Revenue numbers power business decisions. A groupby bug that
+│   double-counts orders would go unnoticed without these tests.
+
+├── TestUserSegmentation  (10 tests)
+│   Segment thresholds (VIP = >NULL, high_value = >NULL) are business
+│   rules. Every boundary is tested from both sides to prevent off-by-one
+│   errors that would send wrong customers the wrong marketing.
+
+└── TestConversionRate    (4 tests)
+    Division by zero is the most common silent bug in analytics code.
+    These confirm the safeguard works and rates calculate correctly.
+```
+
+### How many tests should you write?
+
+One test per **behaviour**, not per function. A single function can have many behaviours —
+`validate_event` has 14 tests because it can fail in 13 different ways and succeed in 1.
+Each failure mode deserves its own test so you know exactly what broke and why.
+
+### Running the tests
+
+```powershell
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage report
+pytest tests/ -v --cov=. --cov-report=term-missing
+```
+
+Expected output:
+```
+40 passed in 1.63s
+```
+
+All 40 tests pass without any AWS credentials — the pipeline logic is fully
+tested independently of the cloud infrastructure.
+
+---
+
 ## Cost — 100% Free Tier
 
 | Service | Free Tier Limit | This Project |

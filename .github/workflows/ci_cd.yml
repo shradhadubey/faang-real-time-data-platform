@@ -6,18 +6,143 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  PYTHON_VERSION: "3.11"
+
 jobs:
-  placeholder:
-    name: Pipeline placeholder — full CI/CD coming soon
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 1: Lint & format
+  # ──────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Format
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Confirm repo structure
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install linting tools
+        run: pip install ruff
+
+      - name: Lint with Ruff
+        run: ruff check . --ignore E501 --output-format=github
+
+      - name: Check formatting
+        run: ruff format . --check
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 2: Unit tests
+  # ──────────────────────────────────────────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
         run: |
-          echo "=== Project Structure ==="
-          find . -type f -name "*.py" | sort
-          find . -type f -name "*.tf"  | sort
-          find . -type f -name "*.sql" | sort
-          echo "=== Done ==="
+          pip install --upgrade pip
+          pip install pytest pytest-cov boto3 pandas pyarrow
+
+      - name: Run unit tests
+        run: |
+          pytest tests/ -v --tb=short \
+            --cov=. \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --ignore=tests/test_producer.py
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 3: Terraform validate (no AWS credentials needed)
+  # ──────────────────────────────────────────────────────────────────────────
+  terraform-validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+
+      - name: Terraform Init (no backend)
+        working-directory: infrastructure/terraform
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: infrastructure/terraform
+        run: terraform validate
+
+      - name: Terraform Format Check
+        working-directory: infrastructure/terraform
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 4: Project structure check
+  # ──────────────────────────────────────────────────────────────────────────
+  structure-check:
+    name: Project Structure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify required files
+        run: |
+          echo "=== Checking required files ==="
+          files=(
+            "data-generator/streaming_producer_sqs.py"
+            "streaming/bronze_consumer.py"
+            "streaming/silver_transformer.py"
+            "batch/gold_aggregator.py"
+            "infrastructure/terraform/main.tf"
+            "infrastructure/terraform/variables.tf"
+            "sql/athena_tables.sql"
+            "sql/analytics_queries.sql"
+            "README.md"
+            "LICENSE"
+            "CONTRIBUTING.md"
+          )
+          all_ok=true
+          for f in "${files[@]}"; do
+            if [ -f "$f" ]; then
+              echo "  ✓ $f"
+            else
+              echo "  ✗ MISSING: $f"
+              all_ok=false
+            fi
+          done
+          if [ "$all_ok" = false ]; then exit 1; fi
+          echo "All required files present ✓"
+
+      - name: Print project summary
+        run: |
+          echo "Python files:"
+          find . -name "*.py" | grep -v __pycache__ | grep -v venv | sort
+          echo "Terraform files:"
+          find . -name "*.tf" | sort
