@@ -46,7 +46,7 @@ class BronzeConsumer:
         self.total_written = 0
         self.total_read    = 0
 
-        logger.info(f"Bronze consumer ready")
+        logger.info("Bronze consumer ready")
         logger.info(f"  Queue  : {self.queue_url}")
         logger.info(f"  Bucket : s3://{self.bucket}/bronze/raw_events/")
 
@@ -165,7 +165,7 @@ class BronzeConsumer:
         finally:
             elapsed = time.time() - start
             logger.info("=" * 50)
-            logger.info(f"Bronze consumer finished")
+            logger.info("Bronze consumer finished")
             logger.info(f"  Total read    : {self.total_read:,} messages")
             logger.info(f"  Total written : {self.total_written:,} events to S3")
             logger.info(f"  Elapsed       : {elapsed:.1f}s")
