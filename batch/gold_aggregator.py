@@ -129,11 +129,7 @@ class GoldAggregator:
             logger.warning("No product events found")
             return pd.DataFrame()
 
-        # Aggregate per product
-            .reset_index()
-        )
-
-        # Simpler re-aggregation using pivot approach
+        # Aggregate per product using pivot approach
         metrics = []
         for (pid, pname, cat), grp in products.groupby(["product_id", "product_name", "category"]):
             metrics.append({
