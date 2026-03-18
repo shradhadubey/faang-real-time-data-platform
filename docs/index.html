@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAANG Data Platform — Analytics Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg:       #f7f6f3;
+    --surface:  #ffffff;
+    --surface2: #f1efe8;
+    --border:   rgba(0,0,0,0.08);
+    --text:     #1a1a18;
+    --muted:    #6b6b66;
+    --hint:     #9c9a92;
+    --purple:   #534AB7;
+    --purple-l: #EEEDFE;
+    --purple-t: #3C3489;
+    --teal:     #0F6E56;
+    --teal-l:   #EAF3DE;
+    --blue:     #185FA5;
+    --blue-l:   #E6F1FB;
+    --amber:    #854F0B;
+    --amber-l:  #FAEEDA;
+    --gray:     #888780;
+    --gray-l:   #B4B2A9;
+    --green-ok: #27500A;
+    --green-bg: #EAF3DE;
+    --radius:   10px;
+    --radius-sm:6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 28px;
+  }
+
+  .db { display: flex; flex-direction: column; gap: 12px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── Header ── */
+  .topbar { display: flex; justify-content: space-between; align-items: center; }
+  .topbar h1 { font-size: 17px; font-weight: 500; letter-spacing: -0.2px; }
+  .topbar p  { font-size: 11px; color: var(--hint); margin-top: 3px; font-family: 'DM Mono', monospace; }
+  .tag {
+    font-size: 10px; padding: 4px 10px; border-radius: 99px;
+    background: var(--surface); border: 0.5px solid var(--border);
+    color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap;
+  }
+
+  /* ── Metrics ── */
+  .metrics { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; }
+  .metric {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius); padding: 12px 14px;
+  }
+  .ml { font-size: 10px; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .mv { font-size: 22px; font-weight: 500; line-height: 1.2; letter-spacing: -0.5px; }
+  .ms { font-size: 10px; color: var(--hint); margin-top: 3px; }
+
+  /* ── Grid rows ── */
+  .row { display: grid; gap: 10px; }
+  .r5  { grid-template-columns: 2.2fr 1fr 1fr 1fr 0.9fr; }
+  .r4  { grid-template-columns: 1.8fr 1.2fr 1fr 1fr; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface); border: 0.5px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+  }
+  .ct { font-size: 12px; font-weight: 500; margin-bottom: 2px; letter-spacing: -0.1px; }
+  .cs { font-size: 10px; color: var(--hint); margin-bottom: 8px; }
+  .cw { position: relative; width: 100%; }
+
+  /* ── Legend ── */
+  .leg { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .li  { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+  .ld  { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+  /* ── Table ── */
+  table { width: 100%; font-size: 11px; border-collapse: collapse; }
+  th {
+    text-align: left; font-weight: 500; font-size: 9px; color: var(--muted);
+    padding: 5px 6px; border-bottom: 0.5px solid var(--border);
+    text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap;
+  }
+  td { padding: 5px 6px; border-bottom: 0.5px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block; font-size: 9px; padding: 2px 6px;
+    border-radius: 99px; font-weight: 500; white-space: nowrap;
+  }
+  .bp { background: var(--purple-l); color: var(--purple-t); }
+  .bg { background: var(--teal-l);   color: var(--teal); }
+  .ba { background: var(--amber-l);  color: var(--amber); }
+
+  /* ── Data quality ── */
+  .dq-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 0; border-bottom: 0.5px solid var(--border); font-size: 11px;
+  }
+  .dq-row:last-child { border-bottom: none; }
+  .dq-check {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--green-bg); display: flex; align-items: center;
+    justify-content: center; font-size: 9px; color: var(--green-ok);
+    font-weight: 500; flex-shrink: 0;
+  }
+  .dq-val { font-weight: 500; font-size: 12px; color: var(--green-ok); }
+
+  /* ── Footer ── */
+  .footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-top: 4px; font-size: 10px; color: var(--hint);
+    font-family: 'DM Mono', monospace; border-top: 0.5px solid var(--border);
+  }
+  .footer span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); }
+</style>
+</head>
+<body>
+<div class="db">
+
+  <div class="topbar">
+    <div>
+      <h1>E-commerce Analytics Dashboard — Gold Layer</h1>
+      <p>FAANG Real-Time Data Platform &nbsp;·&nbsp; March 18, 2026 &nbsp;·&nbsp; 2,020 events · Bronze → Silver → Gold · Amazon Athena</p>
+    </div>
+    <span class="tag">faang-data-platform-dev-730736567399</span>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="ml">Total revenue</div><div class="mv">$18,432</div><div class="ms">203 orders today</div></div>
+    <div class="metric"><div class="ml">Unique buyers</div><div class="mv">187</div><div class="ms">10 countries</div></div>
+    <div class="metric"><div class="ml">Avg order value</div><div class="mv">$90.75</div><div class="ms">Per purchase</div></div>
+    <div class="metric"><div class="ml">Purchase rate</div><div class="mv">10.1%</div><div class="ms">Of all events</div></div>
+    <div class="metric"><div class="ml">Data quality</div><div class="mv" style="color:var(--green-ok)">100%</div><div class="ms">0 rejected records</div></div>
+  </div>
+
+  <div class="row r5">
+    <div class="card">
+      <div class="ct">Top products by revenue</div>
+      <div class="cs">Ranked by total sales · colour = category</div>
+      <div class="leg">
+        <span class="li"><span class="ld" style="background:#534AB7"></span>Electronics</span>
+        <span class="li"><span class="ld" style="background:#0F6E56"></span>Home</span>
+        <span class="li"><span class="ld" style="background:#854F0B"></span>Apparel</span>
+      </div>
+      <div class="cw" style="height:200px"><canvas id="c1"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Revenue by country</div>
+      <div class="cs">Geographic breakdown</div>
+      <div class="leg">
+        <span class="li"><span class="ld" style="background:#378ADD"></span>Americas</span>
+        <span class="li"><span class="ld" style="background:#534AB7"></span>Europe</span>
+        <span class="li"><span class="ld" style="background:#1D9E75"></span>APAC</span>
+      </div>
+      <div class="cw" style="height:200px"><canvas id="c2"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">User segments</div>
+      <div class="cs">Grouped by daily spend</div>
+      <div class="leg">
+        <span class="li"><span class="ld" style="background:#534AB7"></span>VIP</span>
+        <span class="li"><span class="ld" style="background:#378ADD"></span>High value</span>
+        <span class="li"><span class="ld" style="background:#1D9E75"></span>Buyer</span>
+        <span class="li"><span class="ld" style="background:#888780"></span>Browser</span>
+      </div>
+      <div class="cw" style="height:200px"><canvas id="c4"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Purchase funnel</div>
+      <div class="cs">Users per event type</div>
+      <div class="cw" style="height:200px"><canvas id="c5"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="ct">Data quality</div>
+      <div class="cs">Silver layer checks</div>
+      <div style="margin-top:4px">
+        <div class="dq-row"><span style="color:var(--muted)">Total records</span><span class="dq-val">2,020</span></div>
+        <div class="dq-row"><span style="color:var(--muted)">Null event IDs</span><div style="display:flex;align-items:center;gap:5px"><span class="dq-val">0</span><span class="dq-check">✓</span></div></div>
+        <div class="dq-row"><span style="color:var(--muted)">Null user IDs</span><div style="display:flex;align-items:center;gap:5px"><span class="dq-val">0</span><span class="dq-check">✓</span></div></div>
+        <div class="dq-row"><span style="color:var(--muted)">Invalid types</span><div style="display:flex;align-items:center;gap:5px"><span class="dq-val">0</span><span class="dq-check">✓</span></div></div>
+        <div class="dq-row"><span style="color:var(--muted)">Missing revenue</span><div style="display:flex;align-items:center;gap:5px"><span class="dq-val">0</span><span class="dq-check">✓</span></div></div>
+        <div class="dq-row"><span style="color:var(--muted)">Dead-letter</span><div style="display:flex;align-items:center;gap:5px"><span class="dq-val">0</span><span class="dq-check">✓</span></div></div>
+        <div class="dq-row"><span style="color:var(--muted)">Pass rate</span><span class="dq-val" style="font-size:14px">100%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row r4">
+    <div class="card">
+      <div class="ct">Hourly revenue heatmap</div>
+      <div class="cs">Revenue by hour of day — darker = higher revenue</div>
+      <div class="cw" style="height:130px"><canvas id="c3"></canvas></div>
+    </div>
+    <div class="card" style="grid-column:span 3">
+      <div class="ct">Product leaderboard</div>
+      <div class="cs">Top 8 products by revenue with orders and conversion rate</div>
+      <table>
+        <thead><tr><th>#</th><th>Product</th><th>Category</th><th>Revenue</th><th>Orders</th><th>Conversion</th></tr></thead>
+        <tbody id="tbl"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span><span class="dot"></span>Live data from Amazon Athena · faang_data_platform_db</span>
+    <span>github.com/shradhadubey/faang-real-time-data-platform</span>
+  </div>
+
+</div>
+
+<script>
+const products=[
+  {n:'MacBook Pro',c:'Electronics',r:3821,o:18,cv:14.2},
+  {n:'iPhone 15 Pro',c:'Electronics',r:2944,o:24,cv:18.1},
+  {n:'Dyson V15',c:'Home',r:2103,o:19,cv:12.4},
+  {n:'AirPods Pro',c:'Electronics',r:1876,o:31,cv:22.3},
+  {n:'Coffee Maker',c:'Home',r:1432,o:28,cv:19.8},
+  {n:'Nike Air Max',c:'Apparel',r:1187,o:33,cv:24.1},
+  {n:'Kindle PW',c:'Electronics',r:943,o:29,cv:20.7},
+  {n:'Yoga Mat',c:'Apparel',r:712,o:38,cv:31.4},
+];
+const cc={Electronics:'#534AB7',Home:'#0F6E56',Apparel:'#854F0B'};
+const countries=[
+  {n:'US',r:7210,rg:'Americas'},{n:'GB',r:2180,rg:'Europe'},
+  {n:'DE',r:1540,rg:'Europe'},{n:'CA',r:1320,rg:'Americas'},
+  {n:'AU',r:1190,rg:'Asia-Pacific'},{n:'FR',r:1080,rg:'Europe'},
+  {n:'JP',r:980,rg:'Asia-Pacific'},{n:'IN',r:870,rg:'Asia-Pacific'},
+  {n:'BR',r:760,rg:'Americas'},{n:'MX',r:690,rg:'Americas'},
+];
+const rc={Americas:'#378ADD',Europe:'#534AB7','Asia-Pacific':'#1D9E75'};
+const hrv=[120,80,60,40,30,55,180,390,620,780,920,1040,980,870,760,820,940,1120,1380,1240,980,720,480,260];
+const segs=[
+  {l:'VIP',n:12,col:'#534AB7'},{l:'High value',n:48,col:'#378ADD'},
+  {l:'Buyer',n:127,col:'#1D9E75'},{l:'Engaged',n:89,col:'#888780'},
+  {l:'Casual',n:211,col:'#B4B2A9'},
+];
+const funnel=[
+  {t:'Page view',u:892},{t:'Product view',u:634},{t:'Search',u:487},
+  {t:'Add to cart',u:312},{t:'Wishlist',u:198},{t:'Purchase',u:187},
+];
+const g=(ex={})=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},...ex});
+
+new Chart(document.getElementById('c1'),{type:'bar',data:{labels:products.map(p=>p.n),datasets:[{data:products.map(p=>p.r),backgroundColor:products.map(p=>cc[p.c]+'CC'),borderColor:products.map(p=>cc[p.c]),borderWidth:1,borderRadius:3}]},options:{...g(),indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+c.parsed.x.toLocaleString()}}},scales:{x:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:9},color:'#6b6b66'}},y:{grid:{display:false},ticks:{font:{size:9},color:'#6b6b66'}}}}});
+
+new Chart(document.getElementById('c2'),{type:'bar',data:{labels:countries.map(c=>c.n),datasets:[{data:countries.map(c=>c.r),backgroundColor:countries.map(c=>rc[c.rg]+'CC'),borderColor:countries.map(c=>rc[c.rg]),borderWidth:1,borderRadius:3}]},options:{...g(),plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+c.parsed.y.toLocaleString()}}},scales:{x:{grid:{display:false},ticks:{font:{size:9},color:'#6b6b66'}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:9},color:'#6b6b66'}}}}});
+
+new Chart(document.getElementById('c3'),{type:'bar',data:{labels:[...Array(24)].map((_,h)=>h+'h'),datasets:[{data:hrv,backgroundColor:hrv.map(v=>v>1000?'#534AB7':v>600?'#7F77DD':'#AFA9EC'),borderWidth:0,borderRadius:2}]},options:{...g(),plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' $'+c.parsed.y.toLocaleString()}}},scales:{x:{grid:{display:false},ticks:{font:{size:8},color:'#6b6b66',maxRotation:0,autoSkip:false}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{callback:v=>'$'+v,font:{size:8},color:'#6b6b66'}}}}});
+
+new Chart(document.getElementById('c4'),{type:'doughnut',data:{labels:segs.map(s=>s.l),datasets:[{data:segs.map(s=>s.n),backgroundColor:segs.map(s=>s.col+'DD'),borderColor:'#fff',borderWidth:2}]},options:{...g(),cutout:'60%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed} users`}}}}});
+
+new Chart(document.getElementById('c5'),{type:'bar',data:{labels:funnel.map(f=>f.t),datasets:[{data:funnel.map(f=>f.u),backgroundColor:'#1D9E75CC',borderColor:'#0F6E56',borderWidth:1,borderRadius:3}]},options:{...g(),plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.y} users`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9},color:'#6b6b66',maxRotation:30}},y:{grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:9},color:'#6b6b66'}}}}});
+
+const cb={Electronics:'bp',Home:'bg',Apparel:'ba'};
+document.getElementById('tbl').innerHTML=products.map((p,i)=>`
+  <tr>
+    <td style="color:#9c9a92;width:20px">${i+1}</td>
+    <td style="font-weight:500">${p.n}</td>
+    <td><span class="badge ${cb[p.c]||'bp'}">${p.c}</span></td>
+    <td>$${p.r.toLocaleString()}</td>
+    <td>${p.o}</td>
+    <td style="color:#27500A;font-weight:500">${p.cv}%</td>
+  </tr>`).join('');
+</script>
+</body>
+</html>
