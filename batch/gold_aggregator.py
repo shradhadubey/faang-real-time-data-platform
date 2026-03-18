@@ -42,7 +42,7 @@ class GoldAggregator:
         self.s3     = boto3.client("s3", region_name=region)
         self.bucket = bucket
 
-        logger.info(f"Gold aggregator ready")
+        logger.info("Gold aggregator ready")
         logger.info(f"  Source : s3://{bucket}/silver/cleaned_events/")
         logger.info(f"  Target : s3://{bucket}/gold/")
 
@@ -130,16 +130,6 @@ class GoldAggregator:
             return pd.DataFrame()
 
         # Aggregate per product
-        agg = (
-            products
-            .groupby(["product_id", "product_name", "category"], dropna=False)
-            .agg(
-                revenue        = ("revenue",  lambda x: x[products.loc[x.index, "event_type"] == "purchase"].sum()),
-                purchase_count = ("event_id", lambda x: (products.loc[x.index, "event_type"] == "purchase").sum()),
-                cart_adds      = ("event_id", lambda x: (products.loc[x.index, "event_type"] == "add_to_cart").sum()),
-                product_views  = ("event_id", lambda x: (products.loc[x.index, "event_type"] == "product_view").sum()),
-                unique_users   = ("user_id",  "nunique"),
-            )
             .reset_index()
         )
 
@@ -255,7 +245,7 @@ class GoldAggregator:
         if not revenue_df.empty:
             self._write_parquet_to_s3(
                 revenue_df,
-                f"gold/revenue_metrics/"
+                "gold/revenue_metrics/"
                 f"report_year={run_date.year}/report_month={run_date.month:02d}/report_day={run_date.day:02d}/"
                 f"revenue_{ts}.parquet"
             )
@@ -266,7 +256,7 @@ class GoldAggregator:
         if not products_df.empty:
             self._write_parquet_to_s3(
                 products_df,
-                f"gold/top_products/"
+                "gold/top_products/"
                 f"report_year={run_date.year}/report_month={run_date.month:02d}/report_day={run_date.day:02d}/"
                 f"products_{ts}.parquet"
             )
@@ -277,7 +267,7 @@ class GoldAggregator:
         if not users_df.empty:
             self._write_parquet_to_s3(
                 users_df,
-                f"gold/user_segments/"
+                "gold/user_segments/"
                 f"report_year={run_date.year}/report_month={run_date.month:02d}/report_day={run_date.day:02d}/"
                 f"users_{ts}.parquet"
             )
