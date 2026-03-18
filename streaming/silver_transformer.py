@@ -73,7 +73,7 @@ class SilverTransformer:
         self.total_rejected = 0
         self.files_written  = 0
 
-        logger.info(f"Silver transformer ready")
+        logger.info("Silver transformer ready")
         logger.info(f"  Source : s3://{bucket}/bronze/raw_events/")
         logger.info(f"  Target : s3://{bucket}/silver/cleaned_events/")
 
@@ -253,7 +253,7 @@ class SilverTransformer:
             combined_df      = pd.concat(all_valid, ignore_index=True)
             self.total_valid += len(combined_df)
             silver_key       = (
-                f"silver/cleaned_events/"
+                "silver/cleaned_events/"
                 f"event_year={run_date.year}/"
                 f"event_month={run_date.month:02d}/"
                 f"event_day={run_date.day:02d}/"
