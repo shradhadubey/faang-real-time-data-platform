@@ -1,0 +1,5 @@
+venv311/
+.terraform/
+**/.terraform/*
+*.exe
+*.tfstate*

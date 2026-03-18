@@ -1,0 +1,9 @@
+# ── dev.tfvars ────────────────────────────────────────────────────────────────
+# Copy this file to dev.tfvars and fill in your values:
+#   terraform apply -var-file=dev.tfvars
+
+aws_region          = "us-east-1"
+project_name        = "faang-data-platform"
+environment         = "dev"
+kinesis_shard_count = 2
+alarm_sns_arn       = ""   # Optional: "arn:aws:sns:us-east-1:ACCOUNT:faang-platform-alerts"
