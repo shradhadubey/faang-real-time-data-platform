@@ -352,54 +352,6 @@ Three-tier validation using Great Expectations:
 
 ---
 
-## 📋 Resume Bullets
-
-```
-• Architected a real-time e-commerce data platform on AWS processing 1,000+ events/sec via
-  Kinesis Data Streams → PySpark Structured Streaming → S3 Medallion Architecture
-  (Bronze/Silver/Gold), reducing query latency by 80% through columnar Parquet storage
-  and Glue-managed partitioning.
-
-• Designed and implemented a production-grade data quality framework using Great
-  Expectations with 15+ automated checks (schema, null rates, value ranges) integrated
-  into an Apache Airflow DAG, preventing bad data from reaching Gold analytical tables
-  and downstream BI dashboards.
-
-• Provisioned end-to-end cloud infrastructure using Terraform (S3, Kinesis, IAM, Glue
-  Catalog, Athena, CloudWatch), with a 5-stage GitHub Actions CI/CD pipeline including
-  security scanning (Trivy, Gitleaks) and automated Terraform plan/apply, achieving
-  zero-downtime deploys to AWS.
-```
-
----
-
-## 🔗 LinkedIn Announcement
-
-> 🚀 **Just shipped a FAANG-level Real-Time Data Platform!**
->
-> Built a production-grade streaming data platform that mirrors the architecture used at Netflix, Uber, and Airbnb:
->
-> ⚡ **1,000+ events/second** through Kinesis Data Streams  
-> 🔄 **PySpark Structured Streaming** with Bronze → Silver → Gold Medallion Architecture  
-> 🏔️ **S3 Data Lake** with partitioned Parquet, schema evolution, and lifecycle policies  
-> ✅ **Great Expectations** data quality framework with automated validation  
-> 🔧 **Terraform IaC** + GitHub Actions CI/CD — fully reproducible deploys  
-> 📊 **Athena** serverless queries + QuickSight dashboards  
->
-> 🔗 GitHub: [link]  
->
-> #DataEngineering #AWS #ApacheSpark #DataLake #CloudArchitecture #Portfolio
-
----
-
-## 🤝 Contributing
-
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feat/your-feature`
-3. Run tests: `pytest tests/ -v`
-4. Submit a PR — CI will validate automatically
-
----
 
 ## 📄 License
 
