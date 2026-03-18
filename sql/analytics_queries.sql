@@ -1,196 +1,220 @@
 -- ============================================================
 -- FAANG Data Platform — Analytics Queries
 -- ============================================================
--- Ready-to-run Athena SQL for dashboards, ad-hoc analysis,
--- and business intelligence reporting.
--- Database: faang_data_platform_db
+-- All queries run against faang_data_platform_db in Athena
 -- ============================================================
 
 
 -- ────────────────────────────────────────────────────────────
--- 1. REVENUE OVERVIEW
+-- 1. TOP PRODUCTS
 -- ────────────────────────────────────────────────────────────
 
--- Q1: Total daily revenue for the last 30 days
+-- Q1: Top 10 products by revenue
 SELECT
-    report_date,
-    SUM(hourly_revenue)   AS total_revenue,
-    SUM(order_count)      AS total_orders,
-    SUM(unique_customers) AS unique_customers,
-    ROUND(SUM(hourly_revenue) / NULLIF(SUM(order_count), 0), 2) AS avg_order_value
-FROM faang_data_platform_db.gold_daily_revenue
-WHERE report_year  >= YEAR(CURRENT_DATE - INTERVAL '30' DAY)
-  AND report_month >= MONTH(CURRENT_DATE - INTERVAL '30' DAY)
-GROUP BY report_date
-ORDER BY report_date DESC;
+    revenue_rank,
+    product_name,
+    category,
+    ROUND(revenue, 2)                   AS revenue,
+    purchase_count,
+    cart_adds,
+    product_views,
+    ROUND(conversion_rate * 100, 2)     AS conversion_pct,
+    unique_users
+FROM gold_top_products
+ORDER BY revenue_rank ASC
+LIMIT 10;
 
 
--- Q2: Revenue by category — top categories this month
+-- Q2: Best converting products (high cart-to-purchase rate)
+SELECT
+    product_name,
+    category,
+    cart_adds,
+    purchase_count,
+    ROUND(conversion_rate * 100, 2)     AS conversion_pct,
+    ROUND(revenue, 2)                   AS revenue
+FROM gold_top_products
+WHERE cart_adds > 0
+ORDER BY conversion_rate DESC
+LIMIT 10;
+
+
+-- Q3: Products with most views but low conversion (optimization targets)
+SELECT
+    product_name,
+    product_views,
+    purchase_count,
+    ROUND(conversion_rate * 100, 2)     AS conversion_pct,
+    ROUND(revenue, 2)                   AS revenue
+FROM gold_top_products
+WHERE product_views > 10
+  AND conversion_rate < 0.1
+ORDER BY product_views DESC
+LIMIT 10;
+
+
+-- ────────────────────────────────────────────────────────────
+-- 2. REVENUE ANALYTICS
+-- ────────────────────────────────────────────────────────────
+
+-- Q4: Total revenue summary
+SELECT
+    SUM(total_revenue)                  AS total_revenue,
+    SUM(total_orders)                   AS total_orders,
+    SUM(unique_buyers)                  AS unique_buyers,
+    ROUND(SUM(total_revenue) /
+          NULLIF(SUM(total_orders), 0), 2) AS avg_order_value
+FROM gold_revenue_metrics;
+
+
+-- Q5: Revenue by country (geographic breakdown)
+SELECT
+    country,
+    ROUND(SUM(total_revenue), 2)        AS total_revenue,
+    SUM(total_orders)                   AS total_orders,
+    SUM(unique_buyers)                  AS unique_buyers,
+    ROUND(SUM(total_revenue) * 100.0 /
+          SUM(SUM(total_revenue)) OVER(), 2) AS revenue_share_pct
+FROM gold_revenue_metrics
+GROUP BY country
+ORDER BY total_revenue DESC;
+
+
+-- Q6: Revenue by product category
 SELECT
     category,
-    SUM(hourly_revenue)                                           AS total_revenue,
-    SUM(order_count)                                             AS total_orders,
-    ROUND(SUM(hourly_revenue) * 100.0 / SUM(SUM(hourly_revenue)) OVER (), 2) AS revenue_share_pct
-FROM faang_data_platform_db.gold_daily_revenue
-WHERE report_year  = YEAR(CURRENT_DATE)
-  AND report_month = MONTH(CURRENT_DATE)
+    ROUND(SUM(total_revenue), 2)        AS total_revenue,
+    SUM(total_orders)                   AS total_orders,
+    ROUND(AVG(avg_order_value), 2)      AS avg_order_value
+FROM gold_revenue_metrics
+WHERE category IS NOT NULL
 GROUP BY category
 ORDER BY total_revenue DESC;
 
 
--- Q3: Hourly revenue heatmap (hour × day-of-week)
+-- Q7: Hourly revenue heatmap (best hours of the day)
 SELECT
     event_hour,
-    DAY_OF_WEEK(DATE(report_date))  AS day_of_week,
-    ROUND(AVG(hourly_revenue), 2)   AS avg_hourly_revenue
-FROM faang_data_platform_db.gold_daily_revenue
-WHERE report_year  = YEAR(CURRENT_DATE)
-  AND report_month = MONTH(CURRENT_DATE)
-GROUP BY event_hour, DAY_OF_WEEK(DATE(report_date))
-ORDER BY day_of_week, event_hour;
+    ROUND(SUM(total_revenue), 2)        AS revenue,
+    SUM(total_orders)                   AS orders,
+    SUM(unique_buyers)                  AS buyers
+FROM gold_revenue_metrics
+GROUP BY event_hour
+ORDER BY event_hour ASC;
 
 
--- ────────────────────────────────────────────────────────────
--- 2. PRODUCT ANALYTICS
--- ────────────────────────────────────────────────────────────
-
--- Q4: Top 10 products by revenue
+-- Q8: Revenue by country AND category (cross-tab)
 SELECT
-    product_id,
-    product_name,
+    country,
     category,
-    SUM(daily_revenue)   AS total_revenue,
-    SUM(purchase_count)  AS total_sales,
-    SUM(cart_add_count)  AS total_cart_adds,
-    SUM(view_count)      AS total_views,
-    ROUND(AVG(conversion_rate), 4) AS avg_conversion_rate
-FROM faang_data_platform_db.gold_top_products
-WHERE report_year  = YEAR(CURRENT_DATE)
-  AND report_month = MONTH(CURRENT_DATE)
-GROUP BY product_id, product_name, category
-ORDER BY total_revenue DESC
-LIMIT 10;
-
-
--- Q5: Products with declining revenue (WoW comparison)
-WITH this_week AS (
-    SELECT product_id, product_name, SUM(daily_revenue) AS revenue
-    FROM faang_data_platform_db.gold_top_products
-    WHERE DATE(report_date) >= CURRENT_DATE - INTERVAL '7' DAY
-    GROUP BY product_id, product_name
-),
-last_week AS (
-    SELECT product_id, SUM(daily_revenue) AS revenue
-    FROM faang_data_platform_db.gold_top_products
-    WHERE DATE(report_date) >= CURRENT_DATE - INTERVAL '14' DAY
-      AND DATE(report_date) <  CURRENT_DATE - INTERVAL '7'  DAY
-    GROUP BY product_id
-)
-SELECT
-    t.product_name,
-    ROUND(t.revenue, 2)  AS this_week_revenue,
-    ROUND(l.revenue, 2)  AS last_week_revenue,
-    ROUND((t.revenue - l.revenue) / NULLIF(l.revenue, 0) * 100, 2) AS wow_change_pct
-FROM this_week t
-JOIN last_week l USING (product_id)
-WHERE t.revenue < l.revenue
-ORDER BY wow_change_pct ASC
+    ROUND(SUM(total_revenue), 2)        AS revenue,
+    SUM(total_orders)                   AS orders
+FROM gold_revenue_metrics
+WHERE category IS NOT NULL
+GROUP BY country, category
+ORDER BY revenue DESC
 LIMIT 20;
 
 
 -- ────────────────────────────────────────────────────────────
--- 3. USER & FUNNEL ANALYTICS
+-- 3. USER ANALYTICS
 -- ────────────────────────────────────────────────────────────
 
--- Q6: Purchase funnel — conversion rates across event types
+-- Q9: User segment distribution
 SELECT
-    event_type,
-    COUNT(DISTINCT user_id)  AS unique_users,
-    COUNT(*)                 AS event_count,
-    ROUND(COUNT(DISTINCT user_id) * 100.0
-          / MAX(COUNT(DISTINCT user_id)) OVER (), 2) AS funnel_pct
-FROM faang_data_platform_db.silver_events
-WHERE event_year  = YEAR(CURRENT_DATE)
-  AND event_month = MONTH(CURRENT_DATE)
-  AND event_day   = DAY(CURRENT_DATE - INTERVAL '1' DAY)
-GROUP BY event_type
-ORDER BY unique_users DESC;
+    user_segment,
+    COUNT(*)                            AS user_count,
+    ROUND(COUNT(*) * 100.0 /
+          SUM(COUNT(*)) OVER(), 2)      AS pct_of_users,
+    ROUND(AVG(daily_spend), 2)          AS avg_spend,
+    SUM(order_count)                    AS total_orders,
+    ROUND(AVG(event_count), 1)          AS avg_events
+FROM gold_user_segments
+GROUP BY user_segment
+ORDER BY avg_spend DESC;
 
 
--- Q7: Active users by device type and country
+-- Q10: Users by device type
 SELECT
-    country,
     device_type,
-    COUNT(DISTINCT user_id)  AS daily_active_users,
-    COUNT(*)                 AS total_events,
-    SUM(CASE WHEN event_type = 'purchase' THEN revenue ELSE 0 END) AS revenue
-FROM faang_data_platform_db.silver_events
-WHERE event_year  = YEAR(CURRENT_DATE)
-  AND event_month = MONTH(CURRENT_DATE)
-  AND event_day   = DAY(CURRENT_DATE - INTERVAL '1' DAY)
-GROUP BY country, device_type
-ORDER BY daily_active_users DESC
-LIMIT 50;
+    COUNT(DISTINCT user_id)             AS users,
+    ROUND(SUM(daily_spend), 2)          AS total_spend,
+    ROUND(AVG(daily_spend), 2)          AS avg_spend,
+    SUM(order_count)                    AS orders
+FROM gold_user_segments
+GROUP BY device_type
+ORDER BY total_spend DESC;
 
 
--- Q8: High-value customers (top 1%)
+-- Q11: High value users (VIP + high_value segments)
 SELECT
     user_id,
-    COUNT(DISTINCT event_date)       AS active_days,
-    COUNT(*)                         AS total_events,
-    SUM(CASE WHEN event_type = 'purchase' THEN 1 ELSE 0 END) AS orders,
-    ROUND(SUM(COALESCE(revenue, 0)), 2) AS total_spend
-FROM faang_data_platform_db.silver_events
-WHERE event_year  = YEAR(CURRENT_DATE)
-  AND event_month = MONTH(CURRENT_DATE)
-GROUP BY user_id
-HAVING SUM(COALESCE(revenue, 0)) > 500
-ORDER BY total_spend DESC
-LIMIT 100;
+    country,
+    device_type,
+    user_segment,
+    ROUND(daily_spend, 2)               AS spend,
+    order_count,
+    event_count
+FROM gold_user_segments
+WHERE user_segment IN ('vip', 'high_value')
+ORDER BY daily_spend DESC
+LIMIT 20;
 
 
--- ────────────────────────────────────────────────────────────
--- 4. REAL-TIME MONITORING (last 2 hours)
--- ────────────────────────────────────────────────────────────
-
--- Q9: Revenue and order volume in last 2 hours (streaming Gold)
-SELECT
-    window_start,
-    window_end,
-    SUM(total_revenue)    AS revenue,
-    SUM(total_orders)     AS orders,
-    SUM(unique_buyers)    AS unique_buyers
-FROM faang_data_platform_db.gold_sales_metrics
-WHERE window_start >= NOW() - INTERVAL '2' HOUR
-GROUP BY window_start, window_end
-ORDER BY window_start DESC;
-
-
--- Q10: Geographic revenue map (last 24h)
+-- Q12: Users by country
 SELECT
     country,
-    SUM(total_revenue) AS revenue,
-    SUM(total_orders)  AS orders
-FROM faang_data_platform_db.gold_sales_metrics
-WHERE window_start >= NOW() - INTERVAL '24' HOUR
+    COUNT(DISTINCT user_id)             AS users,
+    ROUND(SUM(daily_spend), 2)          AS total_spend,
+    COUNT(CASE WHEN user_segment = 'buyer'
+               OR user_segment = 'high_value'
+               OR user_segment = 'vip'
+               THEN 1 END)              AS buyers
+FROM gold_user_segments
 GROUP BY country
-ORDER BY revenue DESC;
+ORDER BY total_spend DESC;
 
 
 -- ────────────────────────────────────────────────────────────
--- 5. DATA QUALITY MONITORING
+-- 4. SILVER LAYER — EVENT ANALYSIS
 -- ────────────────────────────────────────────────────────────
 
--- Q11: Daily record counts and null rates (DQ trending)
+-- Q13: Event type distribution (funnel view)
 SELECT
-    CONCAT(CAST(report_year AS VARCHAR), '-',
-           LPAD(CAST(report_month AS VARCHAR), 2, '0'), '-',
-           LPAD(CAST(report_day AS VARCHAR),   2, '0')) AS report_date,
-    total_records,
-    null_event_id_pct,
-    null_user_id_pct,
-    duplicate_event_ids,
-    status
-FROM faang_data_platform_db.gold_dq_reports
-ORDER BY report_year DESC, report_month DESC, report_day DESC
-LIMIT 30;
+    event_type,
+    COUNT(*)                            AS event_count,
+    COUNT(DISTINCT user_id)             AS unique_users,
+    ROUND(COUNT(*) * 100.0 /
+          SUM(COUNT(*)) OVER(), 2)      AS pct_of_events
+FROM silver_events
+GROUP BY event_type
+ORDER BY event_count DESC;
+
+
+-- Q14: Revenue per category from Silver
+SELECT
+    category,
+    COUNT(*)                            AS purchase_events,
+    ROUND(SUM(revenue), 2)              AS total_revenue,
+    ROUND(AVG(price), 2)                AS avg_price,
+    SUM(quantity)                       AS units_sold
+FROM silver_events
+WHERE event_type = 'purchase'
+  AND category IS NOT NULL
+GROUP BY category
+ORDER BY total_revenue DESC;
+
+
+-- Q15: Data quality check — null rates
+SELECT
+    COUNT(*)                            AS total_records,
+    SUM(CASE WHEN event_id IS NULL
+             THEN 1 ELSE 0 END)         AS null_event_ids,
+    SUM(CASE WHEN user_id IS NULL
+             THEN 1 ELSE 0 END)         AS null_user_ids,
+    SUM(CASE WHEN event_type IS NULL
+             THEN 1 ELSE 0 END)         AS null_event_types,
+    SUM(CASE WHEN event_type = 'purchase'
+              AND revenue IS NULL
+             THEN 1 ELSE 0 END)         AS purchases_missing_revenue
+FROM silver_events;
