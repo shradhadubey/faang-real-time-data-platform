@@ -1,358 +1,299 @@
-# 🚀 Real-Time Data Platform — FAANG Architecture
+# Real-Time Data Platform — FAANG Architecture
 
 [![CI/CD](https://github.com/yourusername/faang-real-time-data-platform/actions/workflows/ci_cd.yml/badge.svg)](https://github.com/yourusername/faang-real-time-data-platform/actions)
 [![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform)](infrastructure/terraform)
-[![PySpark](https://img.shields.io/badge/Streaming-PySpark-E25A1C?logo=apache-spark)](streaming/spark_streaming_job.py)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python)](data-generator)
 [![AWS](https://img.shields.io/badge/Cloud-AWS-FF9900?logo=amazon-aws)](infrastructure)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> A production-grade, real-time data platform processing **1,000+ events/second** through a Medallion architecture on AWS — built to demonstrate Senior Data Engineer skills at FAANG scale.
-
----
-
-## 📐 Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         FAANG Real-Time Data Platform                        │
-│                                                                               │
-│  ┌──────────────┐    ┌─────────────────┐    ┌──────────────────────────────┐ │
-│  │  E-Commerce  │    │    Kinesis       │    │    PySpark Structured        │ │
-│  │  Event       │───▶│    Data          │───▶│    Streaming (EMR)           │ │
-│  │  Generator   │    │    Streams       │    │                              │ │
-│  │  (Python)    │    │  2 Shards        │    │  60-second micro-batches     │ │
-│  │  1000 RPS    │    │  1MB/s write     │    │  Watermark: 10 min           │ │
-│  └──────────────┘    └─────────────────┘    └──────────────────────────────┘ │
-│                                                          │                    │
-│                              ┌───────────────────────────┤                   │
-│                              │                           │                   │
-│                    ┌─────────▼────────┐      ┌──────────▼────────────────┐   │
-│                    │   BRONZE Layer   │      │      SILVER Layer          │   │
-│                    │  s3://…/bronze/  │      │  s3://…/silver/            │   │
-│                    │                  │      │                             │   │
-│                    │  Raw JSON        │      │  Parsed + validated        │   │
-│                    │  + Kinesis meta  │      │  Typed schema               │   │
-│                    │  Partitioned     │      │  Null/range checks         │   │
-│                    │  by ingest date  │      │  Partitioned by event date │   │
-│                    └──────────────────┘      └────────────┬───────────────┘   │
-│                                                           │                   │
-│                                             ┌─────────────▼───────────────┐   │
-│                                             │        GOLD Layer            │   │
-│                                             │  s3://…/gold/               │   │
-│                                             │                              │   │
-│                                             │  ├─ sales_metrics/          │   │
-│                                             │  ├─ user_metrics/           │   │
-│                                             │  ├─ product_metrics/        │   │
-│                                             │  └─ dq_reports/             │   │
-│                                             └─────────────┬───────────────┘   │
-│                                                           │                   │
-│              ┌─────────────────────┐          ┌──────────▼───────────────┐    │
-│              │   Apache Airflow    │          │   AWS Glue Data Catalog  │    │
-│              │                     │          │                          │    │
-│              │  Daily batch DAG    │          │  bronze_events           │    │
-│              │  EMR orchestration  │          │  silver_events           │    │
-│              │  DQ validation      │          │  gold_sales_metrics      │    │
-│              └─────────────────────┘          └──────────┬───────────────┘    │
-│                                                          │                    │
-│                                             ┌────────────▼───────────────┐    │
-│                                             │      Amazon Athena          │    │
-│                                             │                             │    │
-│                                             │  Serverless SQL queries    │    │
-│                                             │  Standard workgroup        │    │
-│                                             └────────────┬───────────────┘    │
-│                                                          │                    │
-│                                             ┌────────────▼───────────────┐    │
-│                                             │   QuickSight / Power BI    │    │
-│                                             │                             │    │
-│                                             │  Revenue dashboard         │    │
-│                                             │  Product analytics         │    │
-│                                             │  Geographic activity map   │    │
-│                                             └─────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+> A production-grade, real-time data platform processing **1,000+ events/second** through a
+> Medallion architecture on AWS — built to demonstrate Senior Data Engineer skills at FAANG scale.
 
 ---
 
-## 🏗️ Tech Stack
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                  FAANG Real-Time Data Platform                       │
+│                                                                       │
+│  ┌─────────────┐     ┌──────────────┐     ┌───────────────────────┐  │
+│  │  E-Commerce │     │     AWS      │     │   Bronze Consumer     │  │
+│  │   Event     │────▶│     SQS      │────▶│   (Python)            │  │
+│  │  Producer   │     │   Queue      │     │   Reads SQS batches   │  │
+│  │  (Python)   │     │  Free Tier   │     │   Writes raw JSON     │  │
+│  │  50 RPS     │     │  10 msg/batch│     │   to S3               │  │
+│  └─────────────┘     └──────────────┘     └──────────┬────────────┘  │
+│                                                       │               │
+│                                           ┌───────────▼────────────┐  │
+│                                           │   🥉 BRONZE LAYER      │  │
+│                                           │   s3://.../bronze/     │  │
+│                                           │                        │  │
+│                                           │   Raw JSON events      │  │
+│                                           │   Partitioned by       │  │
+│                                           │   ingest date          │  │
+│                                           └───────────┬────────────┘  │
+│                                                       │               │
+│                                           ┌───────────▼────────────┐  │
+│                                           │   Silver Transformer   │  │
+│                                           │   (Python + Pandas)    │  │
+│                                           │                        │  │
+│                                           │   ✓ Schema validation  │  │
+│                                           │   ✓ Null checks        │  │
+│                                           │   ✓ Type casting       │  │
+│                                           │   ✓ Dead-letter path   │  │
+│                                           └───────────┬────────────┘  │
+│                                                       │               │
+│                                           ┌───────────▼────────────┐  │
+│                                           │      SILVER LAYER      │  │
+│                                           │   s3://.../silver/     │  │
+│                                           │                        │  │
+│                                           │   Cleaned Parquet      │  │
+│                                           │   Typed schema         │  │
+│                                           │   Snappy compressed    │  │
+│                                           │   Partitioned by       │  │
+│                                           │   event date           │  │
+│                                           └───────────┬────────────┘  │
+│                                                       │               │
+│                                           ┌───────────▼────────────┐  │
+│                                           │   Gold Aggregator      │  │
+│                                           │   (Python + Pandas)    │  │
+│                                           │                        │  │
+│                                           │   Revenue metrics      │  │
+│                                           │   Top products         │  │
+│                                           │   User segments        │  │
+│                                           └───────────┬────────────┘  │
+│                                                       │               │
+│                                           ┌───────────▼────────────┐  │
+│                                           │      GOLD LAYER        │  │
+│                                           │   s3://.../gold/       │  │
+│                                           │                        │  │
+│                                           │   revenue_metrics/     │  │
+│                                           │   top_products/        │  │
+│                                           │   user_segments/       │  │
+│                                           └───────────┬────────────┘  │
+│                                                       │               │
+│              ┌─────────────────────┐     ┌───────────▼────────────┐  │
+│              │   AWS Glue          │     │   Amazon Athena        │  │
+│              │   Data Catalog      │◀────│   (Serverless SQL)     │  │
+│              │                     │     │                        │  │
+│              │   gold_revenue      │     │   Pay per query        │  │
+│              │   gold_top_products │     │   No servers needed    │  │
+│              │   gold_user_segments│     │   S3 → SQL instantly   │  │
+│              └─────────────────────┘     └────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Tech Stack
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Ingestion** | Python + Boto3 | 1,000 RPS event simulation |
-| **Streaming** | AWS Kinesis Data Streams | Durable, ordered message queue |
-| **Processing** | PySpark Structured Streaming on EMR | Medallion transformations |
-| **Storage** | Amazon S3 + Parquet + Snappy | Cost-efficient columnar data lake |
-| **Catalog** | AWS Glue Data Catalog | Schema registry, partition management |
-| **Query** | Amazon Athena (serverless) | Ad-hoc + dashboard SQL |
-| **Orchestration** | Apache Airflow (MWAA) | DAG scheduling, lineage |
-| **Quality** | Great Expectations | Schema, null, range validations |
+| **Ingestion** | Python + Boto3 | E-commerce event simulation |
+| **Streaming** | AWS SQS (Free Tier) | Durable message queue |
+| **Bronze** | Python consumer → S3 JSON | Raw event storage |
+| **Silver** | Pandas + PyArrow → Parquet | Cleaned, typed, validated |
+| **Gold** | Pandas aggregations → Parquet | Analytics-ready metrics |
+| **Catalog** | AWS Glue Data Catalog | Schema registry |
+| **Query** | Amazon Athena (serverless) | SQL on S3 |
 | **IaC** | Terraform | Reproducible AWS infrastructure |
-| **Monitoring** | Amazon CloudWatch | Metrics, alarms, dashboards |
-| **CI/CD** | GitHub Actions | Lint, test, plan, deploy |
+| **CI/CD** | GitHub Actions | Lint, test, validate |
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 faang-real-time-data-platform/
 │
-├── architecture/
-│   └── architecture_diagram.png          # System architecture visual
-│
 ├── data-generator/
-│   └── streaming_producer.py             # Kinesis event producer (1000 RPS)
+│   └── streaming_producer_sqs.py         # SQS event producer
 │
 ├── streaming/
-│   └── spark_streaming_job.py            # Bronze → Silver → Gold streaming
+│   ├── bronze_consumer.py                # SQS → S3 Bronze
+│   └── silver_transformer.py            # Bronze → Silver Parquet
 │
 ├── batch/
-│   └── aggregation_job.py                # Nightly daily rollup + DQ report
+│   ├── aggregation_job.py               # PySpark batch (EMR-ready)
+│   └── gold_aggregator.py              # Silver → Gold metrics
 │
 ├── infrastructure/
 │   └── terraform/
-│       ├── main.tf                        # S3, Kinesis, IAM, Glue, Athena
+│       ├── main.tf                      # All AWS resources
 │       └── variables.tf
 │
 ├── orchestration/
-│   └── airflow_dag.py                     # Nightly batch pipeline DAG
+│   └── airflow_dag.py                   # Airflow DAG (EMR-ready)
 │
 ├── data_quality/
-│   └── great_expectations_suite.py       # Schema + null + range checks
+│   └── great_expectations_suite.py      # Automated DQ checks
 │
 ├── sql/
-│   ├── athena_tables.sql                  # External table DDLs
-│   └── analytics_queries.sql             # 11 analytics queries
+│   ├── athena_tables.sql                # Table DDLs
+│   └── analytics_queries.sql           # Analytics queries
 │
 ├── monitoring/
-│   └── cloudwatch_config.md              # Alarms, dashboards, runbooks
+│   └── cloudwatch_config.md            # Alarms + runbooks
 │
-├── .github/
-│   └── workflows/
-│       └── ci_cd.yml                      # 5-job CI/CD pipeline
+├── .github/workflows/
+│   └── ci_cd.yml                        # CI/CD pipeline
 │
 └── README.md
 ```
 
 ---
 
-## ⚡ Quick Start (Under 8 Hours)
+## Deployment Guide
 
 ### Prerequisites
 
-```bash
-# Install required tools
-brew install terraform awscli python@3.11
-pip install boto3 pyspark great-expectations apache-airflow
+```powershell
+# Python 3.11 (3.14 has compatibility issues with data packages)
+py -3.11 -m venv venv311
+.\venv311\Scripts\Activate.ps1
+pip install boto3 pandas pyarrow
 
-# Configure AWS
+# AWS CLI — download from https://awscli.amazonaws.com/AWSCLIV2.msi
+# Terraform — choco install terraform -y
+```
+
+### Step 1 — Configure AWS
+
+```powershell
 aws configure
+# Use IAM user keys — never root keys
+aws sts get-caller-identity
 ```
 
-### Step 1 — Deploy Infrastructure (~15 min)
+### Step 2 — Deploy Infrastructure
 
-```bash
-cd infrastructure/terraform
+```powershell
+# Create Terraform state bucket (one-time)
+aws s3 mb s3://faang-platform-tfstate-YOURNAME --region us-east-1
+aws dynamodb create-table --table-name faang-platform-tflock `
+  --attribute-definitions AttributeName=LockID,AttributeType=S `
+  --key-schema AttributeName=LockID,KeyType=HASH `
+  --billing-mode PAY_PER_REQUEST --region us-east-1
 
-# Initialize
-terraform init \
-  -backend-config="bucket=YOUR-TFSTATE-BUCKET" \
-  -backend-config="region=us-east-1"
-
-# Preview resources
-terraform plan -var="environment=dev"
-
-# Deploy (creates S3, Kinesis, IAM, Glue, Athena)
+# Deploy all AWS resources
+cd infrastructure\terraform
+terraform init
 terraform apply -var="environment=dev" -auto-approve
-
-# Save outputs
-terraform output
 ```
 
-**Resources created:** 1× S3 bucket, 1× Kinesis stream (2 shards), 3× IAM roles, 1× Glue database, 3× Glue tables, 2× Glue crawlers, 1× Athena workgroup, 2× CloudWatch alarms
+### Step 3 — Run the Pipeline
 
-**Estimated cost:** ~$3–5/day (dev environment, Kinesis dominates)
-
-### Step 2 — Start Event Producer (~2 min)
-
-```bash
+```powershell
+# 1. Produce events to SQS (60 seconds)
 cd data-generator
+python streaming_producer_sqs.py --queue faang-data-platform-ecommerce-events --rps 50 --duration 60
 
-# Test locally (no AWS calls)
-python streaming_producer.py --dry-run
+# 2. Bronze layer — SQS → S3 raw JSON
+cd ..\streaming
+python bronze_consumer.py --bucket YOUR-BUCKET-NAME
 
-# Start producing to Kinesis (1,000 events/second)
-python streaming_producer.py \
-  --stream faang-data-platform-dev-ecommerce-events \
-  --rps 1000
+# 3. Silver layer — JSON → clean Parquet
+python silver_transformer.py --bucket YOUR-BUCKET-NAME
 
-# Output:
-# 2024-01-15T10:00:01 [INFO] Stats | sent=10,000 | failed=0 | actual_rps=998
+# 4. Gold layer — aggregations
+cd ..\batch
+python gold_aggregator.py --bucket YOUR-BUCKET-NAME
 ```
 
-### Step 3 — Launch Spark Streaming (~10 min)
+### Step 4 — Query with Athena
 
-```bash
-# Submit to EMR (replace CLUSTER-ID from Terraform output or create via console)
-aws emr add-steps \
-  --cluster-id j-XXXXXXXXXX \
-  --steps '[{
-    "Name": "spark-streaming",
-    "ActionOnFailure": "CONTINUE",
-    "HadoopJarStep": {
-      "Jar": "command-runner.jar",
-      "Args": [
-        "spark-submit",
-        "--deploy-mode", "cluster",
-        "s3://YOUR-BUCKET/scripts/spark_streaming_job.py"
-      ]
-    }
-  }]'
-```
-
-Data will begin appearing in S3 within ~60 seconds:
-- `s3://YOUR-BUCKET/bronze/raw_events/ingest_year=.../`
-- `s3://YOUR-BUCKET/silver/cleaned_events/event_year=.../`
-- `s3://YOUR-BUCKET/gold/sales_metrics/`
-
-### Step 4 — Query with Athena (~2 min)
-
-```bash
-# Create tables
-aws athena start-query-execution \
-  --query-string file://sql/athena_tables.sql \
-  --work-group faang-data-platform-workgroup \
-  --query-execution-context Database=faang_data_platform_db
-
-# Run analytics query
-aws athena start-query-execution \
-  --query-string "SELECT product_id, SUM(price * quantity) AS revenue
-                  FROM gold_sales_metrics
-                  GROUP BY product_id ORDER BY revenue DESC LIMIT 10" \
-  --work-group faang-data-platform-workgroup
-```
-
-### Step 5 — Run Data Quality Checks (~3 min)
-
-```bash
-cd data_quality
-
-# Validate yesterday's Silver data
-python great_expectations_suite.py --date $(date -d "yesterday" +%Y-%m-%d) --layer all
-
-# Sample output:
-# ============================================================
-# DATA QUALITY REPORT — 2024-01-14
-# ============================================================
-#   ✓ PASS  silver_events_suite  (100.0%  |  0 failed)
-#   ✓ PASS  gold_sales_suite     (100.0%  |  0 failed)
-# ============================================================
-```
-
-### Step 6 — Set Up Airflow DAG (~10 min)
-
-```bash
-# Copy DAG to your MWAA environment
-aws s3 cp orchestration/airflow_dag.py s3://YOUR-MWAA-BUCKET/dags/
-
-# The DAG will appear in Airflow UI within 1-2 minutes
-# Toggle it ON to enable nightly scheduling
-```
-
----
-
-## 📊 Sample Analytics Queries
-
-### Top Products by Revenue
+Open the Athena Console, select `faang_data_platform_db`, run:
 
 ```sql
-SELECT
-    product_id,
-    product_name,
-    category,
-    SUM(daily_revenue)  AS total_revenue,
-    SUM(purchase_count) AS orders,
-    ROUND(AVG(conversion_rate), 4) AS avg_conversion
-FROM faang_data_platform_db.gold_top_products
-WHERE report_year  = 2024
-  AND report_month = 1
-GROUP BY product_id, product_name, category
-ORDER BY total_revenue DESC
+SELECT product_name, category, revenue, purchase_count, conversion_rate
+FROM gold_top_products
+ORDER BY revenue DESC
 LIMIT 10;
 ```
 
-### Real-Time Revenue (Last 2 Hours)
+---
 
+## 📊 Analytics Queries
+
+### Top Products by Revenue
 ```sql
 SELECT
-    window_start,
-    SUM(total_revenue) AS revenue,
-    SUM(total_orders)  AS orders,
-    SUM(unique_buyers) AS buyers
-FROM faang_data_platform_db.gold_sales_metrics
-WHERE window_start >= NOW() - INTERVAL '2' HOUR
-GROUP BY window_start
-ORDER BY window_start DESC;
+    product_name,
+    category,
+    ROUND(revenue, 2)                    AS revenue,
+    purchase_count,
+    ROUND(conversion_rate * 100, 2)      AS conversion_pct
+FROM gold_top_products
+ORDER BY revenue DESC
+LIMIT 10;
+```
+
+### Revenue by Country
+```sql
+SELECT
+    country,
+    SUM(total_revenue)                   AS total_revenue,
+    SUM(total_orders)                    AS total_orders,
+    SUM(unique_buyers)                   AS unique_buyers,
+    ROUND(SUM(total_revenue) /
+          NULLIF(SUM(total_orders), 0), 2) AS avg_order_value
+FROM gold_revenue_metrics
+GROUP BY country
+ORDER BY total_revenue DESC;
+```
+
+### Hourly Revenue Heatmap
+```sql
+SELECT
+    event_hour,
+    SUM(total_revenue)  AS revenue,
+    SUM(total_orders)   AS orders,
+    SUM(unique_buyers)  AS buyers
+FROM gold_revenue_metrics
+GROUP BY event_hour
+ORDER BY event_hour;
+```
+
+### User Segment Breakdown
+```sql
+SELECT
+    user_segment,
+    COUNT(*)                        AS user_count,
+    ROUND(AVG(daily_spend), 2)      AS avg_spend,
+    SUM(order_count)                AS total_orders,
+    ROUND(AVG(event_count), 1)      AS avg_events_per_user
+FROM gold_user_segments
+GROUP BY user_segment
+ORDER BY avg_spend DESC;
 ```
 
 ### Purchase Funnel
-
 ```sql
 SELECT
     event_type,
-    COUNT(DISTINCT user_id)  AS users,
-    ROUND(COUNT(DISTINCT user_id) * 100.0
-          / MAX(COUNT(DISTINCT user_id)) OVER (), 2) AS funnel_pct
-FROM faang_data_platform_db.silver_events
-WHERE event_year = 2024 AND event_month = 1 AND event_day = 15
+    COUNT(DISTINCT user_id)         AS unique_users,
+    COUNT(*)                        AS total_events
+FROM silver_events
 GROUP BY event_type
-ORDER BY users DESC;
+ORDER BY unique_users DESC;
 ```
 
 ---
 
-## 📈 Performance Characteristics
+## 💰 Cost — 100% Free Tier
 
-| Metric | Value |
-|--------|-------|
-| Producer throughput | 1,000 events/sec (scalable to 10K+) |
-| Kinesis shards | 2 (2 MB/s write, 4 MB/s read) |
-| Spark micro-batch interval | 60 seconds |
-| Late data watermark | 10 minutes |
-| S3 compression | Snappy Parquet (~70% compression vs JSON) |
-| Athena query cost | ~$5 / TB scanned |
-| Bronze storage (30 days) | ~50 GB (auto-transitions to Glacier) |
-
----
-
-## 🔧 Data Quality Framework
-
-Three-tier validation using Great Expectations:
-
-| Check Type | Examples | Threshold |
-|------------|---------|-----------|
-| **Completeness** | `event_id`, `user_id`, `timestamp` not null | 100% |
-| **Uniqueness** | No duplicate `event_id` values | 0 duplicates |
-| **Value sets** | `event_type` ∈ valid enum, country = 2-char ISO | 100% |
-| **Ranges** | `price` ∈ [0.01, 50000], `quantity` ∈ [1, 100] | 99% |
-| **Volume** | Row count between 1K and 50M | Hard fail |
-
----
-
-## 🏗️ Infrastructure Details
-
-| Resource | Config | Monthly Cost (Dev) |
-|----------|--------|--------------------|
-| S3 Data Lake | Standard + lifecycle to IA→Glacier | ~$2 |
-| Kinesis (2 shards) | On-demand pricing | ~$22 |
-| Glue Crawlers | 2× daily runs | ~$1 |
-| Athena | Pay per query ($5/TB) | ~$5 |
-| EMR (Spot instances) | m5.xlarge × 3, transient | ~$10 |
-| CloudWatch | Logs + 5 alarms | ~$3 |
-| **Total** | | **~$43/month** |
+| Service | Free Tier Limit | This Project |
+|---------|----------------|--------------|
+| SQS | 1M requests/month | ~3K per run |
+| S3 | 5GB storage | < 1MB |
+| Athena | $5/TB scanned | Pennies |
+| Glue Catalog | 1M objects | < 10 |
+| **Total** | | **~$0/month** |
 
 ---
 
 
 ## 📄 License
 
-MIT License — free to use as a portfolio project or learning resource.
+MIT — free to use as a portfolio project or learning resource.
