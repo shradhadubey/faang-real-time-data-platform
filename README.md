@@ -11,7 +11,7 @@
 
 ---
 
-## Architecture
+##  Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -26,7 +26,7 @@
 │  └─────────────┘     └──────────────┘     └──────────┬────────────┘  │
 │                                                       │               │
 │                                           ┌───────────▼────────────┐  │
-│                                           │   🥉 BRONZE LAYER      │  │
+│                                           │      BRONZE LAYER      │  │
 │                                           │   s3://.../bronze/     │  │
 │                                           │                        │  │
 │                                           │   Raw JSON events      │  │
@@ -214,9 +214,19 @@ LIMIT 10;
 
 ---
 
-## 📊 Analytics Queries
+## Analytics Queries & Results
 
-### Top Products by Revenue
+> All queries run on **Amazon Athena** — a serverless SQL engine that reads directly
+> from S3. No database server, no loading data, no waiting. Just SQL on top of files.
+
+---
+
+### 1. Top Products by Revenue
+
+**What this shows:** Which products made the most money, how many times each was
+purchased, and what percentage of people who added it to their cart actually bought it
+(conversion rate). Think of it as the product manager's most important report.
+
 ```sql
 SELECT
     product_name,
@@ -229,33 +239,61 @@ ORDER BY revenue DESC
 LIMIT 10;
 ```
 
-### Revenue by Country
+![Top Products](dashboard/screenshot_1_top_products.png)
+
+---
+
+### 2. Revenue by Country
+
+**What this shows:** Where in the world customers are buying from and how much they
+are spending. This tells a business which markets are strongest and where to focus
+marketing spend. Each row is one country with its total sales and number of unique buyers.
+
 ```sql
 SELECT
     country,
-    SUM(total_revenue)                   AS total_revenue,
-    SUM(total_orders)                    AS total_orders,
-    SUM(unique_buyers)                   AS unique_buyers,
+    SUM(total_revenue)                        AS total_revenue,
+    SUM(total_orders)                         AS total_orders,
+    SUM(unique_buyers)                        AS unique_buyers,
     ROUND(SUM(total_revenue) /
-          NULLIF(SUM(total_orders), 0), 2) AS avg_order_value
+          NULLIF(SUM(total_orders), 0), 2)    AS avg_order_value
 FROM gold_revenue_metrics
 GROUP BY country
 ORDER BY total_revenue DESC;
 ```
 
-### Hourly Revenue Heatmap
+![Revenue by Country](dashboard/screenshot_2_revenue_by_country.png)
+
+---
+
+### 3. Hourly Revenue Heatmap
+
+**What this shows:** Which hours of the day generate the most sales. A business uses
+this to decide when to run flash sales, send marketing emails, or staff customer support.
+Hour 0 = midnight, Hour 13 = 1pm, and so on.
+
 ```sql
 SELECT
     event_hour,
-    SUM(total_revenue)  AS revenue,
-    SUM(total_orders)   AS orders,
-    SUM(unique_buyers)  AS buyers
+    ROUND(SUM(total_revenue), 2)    AS revenue,
+    SUM(total_orders)               AS orders,
+    SUM(unique_buyers)              AS buyers
 FROM gold_revenue_metrics
 GROUP BY event_hour
-ORDER BY event_hour;
+ORDER BY event_hour ASC;
 ```
 
-### User Segment Breakdown
+![Hourly Revenue](dashboard/screenshot_4_hourly_revenue.png)
+
+---
+
+### 4. User Segment Breakdown
+
+**What this shows:** Customers automatically grouped by how much they spent in a day.
+A **VIP** spent over $500, a **high_value** customer spent $100–500, a **buyer** made
+at least one purchase, and a **casual_browser** just looked around. This is the foundation
+of any customer loyalty or marketing programme.
+
 ```sql
 SELECT
     user_segment,
@@ -268,7 +306,17 @@ GROUP BY user_segment
 ORDER BY avg_spend DESC;
 ```
 
-### Purchase Funnel
+![User Segments](dashboard/screenshot_3_user_segments.png)
+
+---
+
+### 5. Purchase Funnel
+
+**What this shows:** How many unique users performed each type of action — from
+browsing a page all the way down to completing a purchase. Every business wants to
+understand where customers drop off. A large gap between `add_to_cart` and `purchase`
+means something is stopping people from checking out.
+
 ```sql
 SELECT
     event_type,
@@ -281,7 +329,31 @@ ORDER BY unique_users DESC;
 
 ---
 
-## 💰 Cost — 100% Free Tier
+### 6. ✅ Data Quality Check
+
+**What this shows:** A single-row health report on the entire dataset. Every column
+should be zero — meaning no missing IDs, no missing timestamps, and no purchases
+without a revenue value. This proves the data quality pipeline is working correctly
+before any business decision is made on top of the data.
+
+```sql
+SELECT
+    COUNT(*)                                    AS total_records,
+    SUM(CASE WHEN event_id IS NULL
+             THEN 1 ELSE 0 END)                 AS null_event_ids,
+    SUM(CASE WHEN user_id IS NULL
+             THEN 1 ELSE 0 END)                 AS null_user_ids,
+    SUM(CASE WHEN event_type = 'purchase'
+              AND revenue IS NULL
+             THEN 1 ELSE 0 END)                 AS purchases_missing_revenue
+FROM silver_events;
+```
+
+![Data Quality](dashboard/screenshot_5_data_quality.png)
+
+---
+
+## Cost — 100% Free Tier
 
 | Service | Free Tier Limit | This Project |
 |---------|----------------|--------------|
@@ -294,6 +366,5 @@ ORDER BY unique_users DESC;
 ---
 
 
-## 📄 License
-
+## License
 MIT — free to use as a portfolio project or learning resource.
